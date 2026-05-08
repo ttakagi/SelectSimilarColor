@@ -66,6 +66,29 @@
 
     function getItemFillColor(item) {
         try {
+            // CompoundPathItem は直接 fillColor を持たないため内部パスから取得
+            if (item.typename === "CompoundPathItem") {
+                if (item.pathItems && item.pathItems.length > 0) {
+                    var c = item.pathItems[0].fillColor;
+                    if (c && c.typename !== "NoColor") return copyColor(c);
+                }
+                return null;
+            }
+            // TextFrame はキャラクター属性から取得
+            if (item.typename === "TextFrame") {
+                try {
+                    var c = item.textRange.characterAttributes.fillColor;
+                    if (c && c.typename !== "NoColor") return copyColor(c);
+                } catch (e) {}
+                try {
+                    var chars = item.textRange.characters;
+                    if (chars.length > 0) {
+                        var c = chars[0].characterAttributes.fillColor;
+                        if (c && c.typename !== "NoColor") return copyColor(c);
+                    }
+                } catch (e) {}
+                return null;
+            }
             var c = item.fillColor;
             if (c && c.typename !== "NoColor") return copyColor(c);
         } catch (e) {}
@@ -74,6 +97,22 @@
 
     function getItemStrokeColor(item) {
         try {
+            // CompoundPathItem も同様に内部パスから取得
+            if (item.typename === "CompoundPathItem") {
+                if (item.pathItems && item.pathItems.length > 0) {
+                    var c = item.pathItems[0].strokeColor;
+                    if (c && c.typename !== "NoColor") return copyColor(c);
+                }
+                return null;
+            }
+            // TextFrame はキャラクター属性から取得
+            if (item.typename === "TextFrame") {
+                try {
+                    var c = item.textRange.characterAttributes.strokeColor;
+                    if (c && c.typename !== "NoColor") return copyColor(c);
+                } catch (e) {}
+                return null;
+            }
             var c = item.strokeColor;
             if (c && c.typename !== "NoColor") return copyColor(c);
         } catch (e) {}
@@ -119,12 +158,19 @@
     if (!sel || sel.length === 0) { alert("オブジェクトを選択してから実行してください。"); return; }
 
     var baseColor = null;
+    var baseColorSource = "塗り";
     for (var si = 0; si < sel.length; si++) {
         baseColor = getItemFillColor(sel[si]);
-        if (baseColor) break;
+        if (baseColor) { baseColorSource = "塗り"; break; }
     }
     if (!baseColor) {
-        alert("選択オブジェクトに有効な塗り色が見つかりませんでした。\n（塗りなし・グラデーション・パターンは対象外です）");
+        for (var si = 0; si < sel.length; si++) {
+            baseColor = getItemStrokeColor(sel[si]);
+            if (baseColor) { baseColorSource = "線"; break; }
+        }
+    }
+    if (!baseColor) {
+        alert("選択オブジェクトに有効な塗り・線の色が見つかりませんでした。\n（グラデーション・パターンは対象外です）");
         return;
     }
 
@@ -197,6 +243,7 @@
         for (var j = 0; j < matched.length; j++) {
             try { matched[j].selected = true; } catch (e) {}
         }
+        app.redraw();
         return matched.length;
     }
 
@@ -213,7 +260,7 @@
     var colorLabel = previewGroup.add("statictext", undefined, "");
     colorLabel.preferredSize.width = 280;
     if (displayRGB) {
-        colorLabel.text = hexStr + "  ( R:" + displayRGB.r + "  G:" + displayRGB.g + "  B:" + displayRGB.b + " )  [" + colorSpaceLabel + "]";
+        colorLabel.text = hexStr + "  ( R:" + displayRGB.r + "  G:" + displayRGB.g + "  B:" + displayRGB.b + " )  [" + colorSpaceLabel + " / " + baseColorSource + "]";
     }
 
     var targetPanel = dlg.add("panel", undefined, "比較対象");
